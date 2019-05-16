@@ -55,6 +55,10 @@
                 "excluded_candidates": [{
                     "inventory_type": "vfmodule",
                     "candidate_id": "e765d576-8755-4145-8536-0bb6d9b1dc9a"
+                }],
+                "required_candidates": [{
+                    "inventory_type": "vfmodule",
+                    "candidate_id": "e765d576-8755-4145-8536-0bb6d9b1dc9a"
                 }]
             }],
             "vPGN": [{
@@ -83,6 +87,7 @@
         "homing_template_version": "2017-10-10"
     },
     "limit": 100,
+    "num_solution": "100",
     "files": {},
     "timeout": 1200
 }

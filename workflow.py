@@ -2,6 +2,7 @@ import os
 import json
 import sys
 import uuid
+import time
 import netifaces as ni
 import warnings
 import contextlib
@@ -99,12 +100,19 @@ def _get_aai_rel_link_data(data, related_to, search_key=None, match_dict=None):
     return response
 
 
-class AAIResource(Resource):
+class AAIApiResource(Resource):
     actions = {
         'generic_vnf': {'method': 'GET', 'url': 'network/generic-vnfs/generic-vnf/{}'},
         'link': {'method': 'GET', 'url': '{}'},
         'service_instance': {'method': 'GET',
                              'url': 'business/customers/customer/{}/service-subscriptions/service-subscription/{}/service-instances/service-instance/{}'}
+    }
+
+
+class HASApiResource(Resource):
+    actions = {
+        'plans': {'method': 'POST', 'url': 'plans/'},
+        'plan': {'method': 'GET', 'url': 'plans/{}'}
     }
 
 
@@ -123,7 +131,26 @@ def _init_python_aai_api(onap_ip):
         append_slash=False,
         json_encode_body=True # encode body as json
     )
-    api.add_resource(resource_name='aai', resource_class=AAIResource)
+    api.add_resource(resource_name='aai', resource_class=AAIApiResource)
+    return api
+
+
+def _init_python_has_api(onap_ip):
+    api = API(
+        api_root_url="https://{}:30275/v1/".format(onap_ip),
+        params={},
+        headers={
+            'Authorization': encode("admin1", "plan.15"),
+            'X-FromAppId': 'SCRIPT',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-TransactionId': str(uuid.uuid4()),
+        },
+        timeout=30,
+        append_slash=False,
+        json_encode_body=True # encode body as json
+    )
+    api.add_resource(resource_name='has', resource_class=HASApiResource)
     return api
 
 
@@ -138,6 +165,7 @@ def load_aai_data(vfw_vnf_id, onap_ip):
         aai_data['vfw-model-info']['model-invariant-id'] = response.body.get('model-invariant-id')
         aai_data['vfw-model-info']['model-version-id'] = response.body.get('model-version-id')
         aai_data['vfw-model-info']['vnf-name'] = response.body.get('vnf-name')
+        aai_data['vf-module-id'] = response.body['vf-modules']['vf-module'][0]['vf-module-id']
 
         related_to = "service-instance"
         search_key = "customer.global-customer-id"
@@ -172,10 +200,63 @@ def load_aai_data(vfw_vnf_id, onap_ip):
     return aai_data
 
 
+def _has_request(onap_ip, aai_data, exclude):
+    print('Making HAS request for excluded {}'.format(str(exclude)))
+    api = _init_python_has_api(onap_ip)
+    request_id = str(uuid.uuid4())
+    template = json.loads(open('templates/hasRequest.json').read())
+    result = {}
+    template['name'] = request_id
+    node = template['template']['parameters']
+    node['chosen_customer_id'] = aai_data['service-info']['global-customer-id']
+    node['service_id'] = aai_data['service-info']['service-instance-id']
+    node = template['template']['demands']['vFW-SINK'][0]
+    node['attributes']['model-invariant-id'] = aai_data['vfw-model-info']['model-invariant-id']
+    node['attributes']['model-version-id'] = aai_data['vfw-model-info']['model-version-id']
+    if exclude:
+        node['excluded_candidates'][0]['candidate_id'] = aai_data['vf-module-id']
+        del node['required_candidates']
+    else:
+        node['required_candidates'][0]['candidate_id'] = aai_data['vf-module-id']
+        del node['excluded_candidates']
+    node = template['template']['demands']['vPGN'][0]
+    node['attributes']['model-invariant-id'] = aai_data['vpgn-model-info']['model-invariant-id']
+    node['attributes']['model-version-id'] = aai_data['vpgn-model-info']['model-version-id']
+
+    with _no_ssl_verification():
+        response = api.has.plans(body=template, params={}, headers={})
+        if response.body.get('error_message') is not None:
+            raise Exception(response.body['error_message']['explanation'])
+        else:
+            plan_id = response.body['id']
+            response = api.has.plan(plan_id, body=None, params={}, headers={})
+            status = response.body['plans'][0]['status']
+            while status != 'done' and status != 'error':
+                print(status)
+                time.sleep(2)
+                response = api.has.plan(plan_id, body=None, params={}, headers={})
+                status = response.body['plans'][0]['status']
+            if status == 'done':
+                result = response.body['plans'][0]['recommendations'][0]
+            else:
+                raise Exception(response.body['plans'][0]['message'])
+
+    print(result)
+    return result
+
+
+def get_appc_lcm_data(vfw_vnf_id, onap_ip, aai_data):
+    migrate_from = _has_request(onap_ip, aai_data, False)
+    migrate_to = _has_request(onap_ip, aai_data, True)
+    #print(json.dumps(migrate_from, indent=4))
+    #print(json.dumps(migrate_to, indent=4))
+
+
 def execute_workflow(vfw_vnf_id, onap_ip):
     print("Executing workflow for VNF ID '{}' on ONAP with IP {}".format(vfw_vnf_id, onap_ip))
     aai_data = load_aai_data(vfw_vnf_id, onap_ip)
-
     print(json.dumps(aai_data, indent=4))
+    get_appc_lcm_data(vfw_vnf_id, onap_ip, aai_data)
+
 
 execute_workflow(sys.argv[1], sys.argv[2])
