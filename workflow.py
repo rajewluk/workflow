@@ -245,18 +245,90 @@ def _has_request(onap_ip, aai_data, exclude):
     return result
 
 
-def get_appc_lcm_data(vfw_vnf_id, onap_ip, aai_data):
-    migrate_from = _has_request(onap_ip, aai_data, False)
-    migrate_to = _has_request(onap_ip, aai_data, True)
+def _extract_has_appc_identifiers(has_result, demand):
+    if demand == 'vPGN':
+        v_server = has_result[demand]['attributes']['vservers'][0]
+    else:
+        if len(has_result[demand]['attributes']['vservers'][0]['l-interfaces']) == 4:
+            v_server = has_result[demand]['attributes']['vservers'][0]
+        else:
+            v_server = has_result[demand]['attributes']['vservers'][1]
+    for itf in v_server['l-interfaces']:
+        if itf['ipv4-addresses'][0].startswith("10.0."):
+            ip = itf['ipv4-addresses'][0]
+            break
+
+    config = {
+        'vnf-id': has_result[demand]['attributes']['nf-id'],
+        'vf-module-id': has_result[demand]['attributes']['vf-module-id'],
+        'ip': ip
+    }
+    return config
+
+
+def _extract_has_appc_dt_config(has_result, demand):
+    if demand == 'vPGN':
+        return {}
+    else:
+        config = {
+            "nf-type": has_result[demand]['attributes']['nf-type'],
+            "nf-name": has_result[demand]['attributes']['nf-name'],
+            "vf-module-name": has_result[demand]['attributes']['vf-module-name'],
+            "vnf-type": has_result[demand]['attributes']['vnf-type'],
+            "service_instance_id": "319e60ef-08b1-47aa-ae92-51b97f05e1bc",
+            "cloudClli": has_result[demand]['attributes']['physical-location-id'],
+            "nf-id": has_result[demand]['attributes']['nf-id'],
+            "vf-module-id": has_result[demand]['attributes']['vf-module-id'],
+            "aic_version": has_result[demand]['attributes']['aic_version'],
+            "ipv4-oam-address": has_result[demand]['attributes']['ipv4-oam-address'],
+            "vnfHostName": has_result[demand]['candidate']['host_id'],
+            "ipv6-oam-address": has_result[demand]['attributes']['ipv6-oam-address'],
+            "cloudOwner": has_result[demand]['candidate']['cloud_owner'],
+            "isRehome": has_result[demand]['candidate']['is_rehome'],
+            "locationId": has_result[demand]['candidate']['location_id'],
+            "locationType": has_result[demand]['candidate']['location_type'],
+            'vservers': has_result[demand]['attributes']['vservers']
+        }
+        return config
+
+
+def _build_config_from_has(has_result):
+    v_pgn_result = _extract_has_appc_identifiers(has_result, 'vPGN')
+    v_fw_result = _extract_has_appc_identifiers(has_result, 'vFW-SINK')
+    dt_config = _extract_has_appc_dt_config(has_result, 'vFW-SINK')
+    config = {
+        'destinations': []
+    }
+    config['destinations'].append({
+        'vPGN': v_pgn_result,
+        'vFW-SINK': v_fw_result,
+        'dt-config': dt_config
+    })
+    print(json.dumps(config, indent=4))
+
+
+def get_appc_lcm_data(onap_ip, aai_data, simulate_oof, if_close_loop_vfw):
+    if simulate_oof:
+        migrate_from = json.loads(open('templates/sample-has-required.json').read())
+        migrate_to = json.loads(open('templates/sample-has-excluded.json').read())
+    else:
+        migrate_from = _has_request(onap_ip, aai_data, False)
+        if not if_close_loop_vfw:
+            migrate_to = _has_request(onap_ip, aai_data, True)
+        else:
+            migrate_to = migrate_from
+    migrate_from = _build_config_from_has(migrate_from)
+    migrate_to = _build_config_from_has(migrate_to)
     #print(json.dumps(migrate_from, indent=4))
     #print(json.dumps(migrate_to, indent=4))
 
 
-def execute_workflow(vfw_vnf_id, onap_ip):
+def execute_workflow(vfw_vnf_id, onap_ip, simulate_oof, if_close_loop_vfw):
     print("Executing workflow for VNF ID '{}' on ONAP with IP {}".format(vfw_vnf_id, onap_ip))
+    print("Simulate OOF {}, is CL vFW {}".format(simulate_oof, if_close_loop_vfw))
     aai_data = load_aai_data(vfw_vnf_id, onap_ip)
     print(json.dumps(aai_data, indent=4))
-    get_appc_lcm_data(vfw_vnf_id, onap_ip, aai_data)
+    get_appc_lcm_data(onap_ip, aai_data, simulate_oof, if_close_loop_vfw)
 
-
-execute_workflow(sys.argv[1], sys.argv[2])
+#vnf_id, K8s node IP, simualate OOF, if close loop
+execute_workflow(sys.argv[1], sys.argv[2], sys.argv[3].lower() == 'true', sys.argv[4].lower() == 'true')
