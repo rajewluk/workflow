@@ -1,192 +1,192 @@
 {
-  "vPGN": {
-    "attributes": {
-      "ipv6-oam-address": "",
-      "nf-id": "ed9c1f38-83cd-40e4-be16-23019c09e61b",
-      "cloud_owner": "CloudOwner",
-      "vf-module-name": "Vfmodule_Ete_vFWDTvPKG_4fb7d3cf_0",
-      "service_instance_id": "2ad369d4-9056-4dc9-8e6d-df24f45e8729",
-      "vnf-type": "vFWDT 2019-05-16 00:40:/vFWDT_vPKG 43036e62-7c6e 0",
-      "vf-module-id": "de35892f-6f21-43d6-acc6-763b58a5dbda",
-      "vservers": [
-        {
-          "l-interfaces": [
-            {
-              "macaddr": "fa:16:3e:75:01:b9",
-              "interface-name": "Vfmodule_Ete_vFWDTvPKG_4fb7d3cf_0-vpg_private_2_port-snh6ch75qwyx",
-              "ipv6-addresses": [],
-              "network-name": "",
-              "network-id": "5c1e001a-4a8f-4cb3-af6d-6267c58db78b",
-              "ipv4-addresses": [
-                "10.100.100.2"
-              ],
-              "interface-id": "c64d3c84-5196-449d-a31b-32d904b53b9a"
-            },
-            {
-              "macaddr": "fa:16:3e:84:72:4a",
-              "interface-name": "Vfmodule_Ete_vFWDTvPKG_4fb7d3cf_0-vpg_private_0_port-pwx5izxssjbl",
-              "ipv6-addresses": [],
-              "network-name": "",
-              "network-id": "aef7e82b-4581-4012-a525-7b301e3b2cfe",
-              "ipv4-addresses": [
-                "192.168.10.200"
-              ],
-              "interface-id": "77562754-f672-4f4f-88ea-c6a35997f2a0"
-            },
-            {
-              "macaddr": "fa:16:3e:ce:00:24",
-              "interface-name": "Vfmodule_Ete_vFWDTvPKG_4fb7d3cf_0-vpg_private_1_port-deucpuuev67b",
-              "ipv6-addresses": [],
-              "network-name": "",
-              "network-id": "01d5d68f-347d-4210-98e1-34d742529e85",
-              "ipv4-addresses": [
-                "10.0.215.103"
-              ],
-              "interface-id": "04dd1b41-9630-4b82-a3e7-eeedeee681c9"
-            }
-          ],
-          "vserver-id": "3cd67777-fd7a-4d29-b230-575ecaad00fa",
-          "vserver-name": "vofwl01pgnd3cf"
-        }
-      ],
-      "nf-type": "vnf",
-      "host_id": "Ete_vFWDTvPKG_4fb7d3cf_0",
-      "nf-name": "Ete_vFWDTvPKG_4fb7d3cf_0",
-      "physical-location-id": "clli1",
-      "aic_version": "1",
-      "ipv4-oam-address": ""
-    },
-    "service_resource_id": "vPGN-XX",
-    "inventory_provider": "aai",
-    "candidate": {
-      "vim-id": "CloudOwner_RegionOne",
-      "host_id": "Ete_vFWDTvPKG_4fb7d3cf_0",
-      "cloud_owner": "CloudOwner",
-      "inventory_type": "vfmodule",
-      "candidate_id": "de35892f-6f21-43d6-acc6-763b58a5dbda",
-      "location_type": "att_aic",
-      "is_rehome": "false",
-      "location_id": "RegionOne"
-    }
-  },
-  "vFW-SINK": {
-    "attributes": {
-      "ipv6-oam-address": "",
-      "nf-id": "36f4f126-a404-4deb-a8c2-2ac8c56c2fae",
-      "cloud_owner": "CloudOwner",
-      "vf-module-name": "Vfmodule_Ete_vFWDTvFWSNK_4fb7d3cf_1",
-      "service_instance_id": "2ad369d4-9056-4dc9-8e6d-df24f45e8729",
-      "vnf-type": "vFWDT 2019-05-16 00:40:/vFWDT_vFWSNK e2b5fb4e-e74b 1",
-      "vf-module-id": "d0154748-16f9-4041-8040-76fe0d075f52",
-      "vservers": [
-        {
-          "l-interfaces": [
-            {
-              "macaddr": "fa:16:3e:e6:51:30",
-              "interface-name": "Vfmodule_Ete_vFWDTvFWSNK_4fb7d3cf_1-vfw_private_3_port-wzjwwgqvczuz",
-              "ipv6-addresses": [],
-              "network-name": "",
-              "network-id": "5c1e001a-4a8f-4cb3-af6d-6267c58db78b",
-              "ipv4-addresses": [
-                "10.100.100.1"
-              ],
-              "interface-id": "721f5dae-e9cb-43e1-b5a0-a07fcfc92e07"
-            },
-            {
-              "macaddr": "fa:16:3e:38:6c:d5",
-              "interface-name": "Vfmodule_Ete_vFWDTvFWSNK_4fb7d3cf_1-vfw_private_2_port-vp3uo7akei6j",
-              "ipv6-addresses": [],
-              "network-name": "",
-              "network-id": "01d5d68f-347d-4210-98e1-34d742529e85",
-              "ipv4-addresses": [
-                "10.0.110.1"
-              ],
-              "interface-id": "c8750152-851d-455d-b328-0e3bf910bbd3"
-            },
-            {
-              "macaddr": "fa:16:3e:79:20:8e",
-              "interface-name": "Vfmodule_Ete_vFWDTvFWSNK_4fb7d3cf_1-vfw_private_1_port-m2jhuwkbtiui",
-              "ipv6-addresses": [],
-              "network-name": "",
-              "network-id": "fdde5a31-b852-4a57-ad30-6f511f79924b",
-              "ipv4-addresses": [
-                "192.168.20.100"
-              ],
-              "interface-id": "1e54b0a4-db17-461a-8c40-7bd81f473c33"
-            },
-            {
-              "macaddr": "fa:16:3e:67:fc:8b",
-              "interface-name": "Vfmodule_Ete_vFWDTvFWSNK_4fb7d3cf_1-vfw_private_0_port-45j25prpmr6o",
-              "ipv6-addresses": [],
-              "network-name": "",
-              "network-id": "aef7e82b-4581-4012-a525-7b301e3b2cfe",
-              "ipv4-addresses": [
-                "192.168.10.100"
-              ],
-              "interface-id": "27e6639b-bb78-4290-ad5a-28c88599528e"
-            }
-          ],
-          "vserver-id": "9ace9813-a4a5-46a0-a08e-dd35294c72eb",
-          "vserver-name": "vofwl01vfwd3cf"
+    "vPGN": {
+        "candidate": {
+            "cloud_owner": "CloudOwner",
+            "location_type": "att_aic",
+            "inventory_type": "vfmodule",
+            "location_id": "RegionOne",
+            "vim-id": "CloudOwner_RegionOne",
+            "is_rehome": "false",
+            "host_id": "Ete_vFWDTvPKG_4a078cd7_0",
+            "candidate_id": "20982556-57d5-48e3-9b69-955062082cd6"
         },
-        {
-          "l-interfaces": [
-            {
-              "macaddr": "fa:16:3e:bd:29:aa",
-              "interface-name": "Vfmodule_Ete_vFWDTvFWSNK_4fb7d3cf_1-vsn_private_1_port-mwcttqk6456f",
-              "ipv6-addresses": [],
-              "network-name": "",
-              "network-id": "01d5d68f-347d-4210-98e1-34d742529e85",
-              "ipv4-addresses": [
-                "10.0.110.3"
-              ],
-              "interface-id": "a431eb6d-c679-4cbd-baf2-e0d2d91647ca"
-            },
-            {
-              "macaddr": "fa:16:3e:0d:9e:85",
-              "interface-name": "Vfmodule_Ete_vFWDTvFWSNK_4fb7d3cf_1-vsn_private_2_port-miyofx7ycse2",
-              "ipv6-addresses": [],
-              "network-name": "",
-              "network-id": "5c1e001a-4a8f-4cb3-af6d-6267c58db78b",
-              "ipv4-addresses": [
-                "10.100.100.3"
-              ],
-              "interface-id": "681731f2-cb11-4f0c-a211-c32fa3b78ff5"
-            },
-            {
-              "macaddr": "fa:16:3e:e6:32:c8",
-              "interface-name": "Vfmodule_Ete_vFWDTvFWSNK_4fb7d3cf_1-vsn_private_0_port-jvehcjwjhx7z",
-              "ipv6-addresses": [],
-              "network-name": "",
-              "network-id": "fdde5a31-b852-4a57-ad30-6f511f79924b",
-              "ipv4-addresses": [
-                "192.168.20.250"
-              ],
-              "interface-id": "0c2d4bbf-fc00-416d-90b6-d47dd6edcbcf"
-            }
-          ],
-          "vserver-id": "1d5ad017-e922-4c57-8671-6f20c03f782d",
-          "vserver-name": "vofwl01snkd3cf"
-        }
-      ],
-      "nf-type": "vnf",
-      "host_id": "Ete_vFWDTvFWSNK_4fb7d3cf_1",
-      "nf-name": "Ete_vFWDTvFWSNK_4fb7d3cf_1",
-      "physical-location-id": "clli1",
-      "aic_version": "1",
-      "ipv4-oam-address": ""
+        "attributes": {
+            "nf-name": "Ete_vFWDTvPKG_4a078cd7_0",
+            "vnf-type": "vFWDT 2019-05-17 14:53:/vFWDT_vPKG edf0ae04-6035 0",
+            "vservers": [
+                {
+                    "l-interfaces": [
+                        {
+                            "macaddr": "fa:16:3e:bc:6a:e7",
+                            "network-id": "c58db550-312a-42b5-a7d9-8d67a9156195",
+                            "interface-id": "a52e273f-5361-4869-890d-e08b8f685ff3",
+                            "network-name": "",
+                            "interface-name": "Vfmodule_Ete_vFWDTvPKG_4a078cd7_0-vpg_private_2_port-mifiwfwwwkoy",
+                            "ipv6-addresses": [],
+                            "ipv4-addresses": [
+                                "10.100.100.2"
+                            ]
+                        },
+                        {
+                            "macaddr": "fa:16:3e:ff:3f:c9",
+                            "network-id": "81fc5db1-84e4-48f0-9532-abba676b9898",
+                            "interface-id": "fbc69bbb-e179-4e8d-8743-8dd15eda6c12",
+                            "network-name": "",
+                            "interface-name": "Vfmodule_Ete_vFWDTvPKG_4a078cd7_0-vpg_private_0_port-3r6fpiwyeajc",
+                            "ipv6-addresses": [],
+                            "ipv4-addresses": [
+                                "192.168.10.200"
+                            ]
+                        },
+                        {
+                            "macaddr": "fa:16:3e:f3:21:d9",
+                            "network-id": "baaf67c1-06c9-44f7-b168-d18c107843d4",
+                            "interface-id": "a9440cb0-3517-46a2-9b2d-25feab1ec8ad",
+                            "network-name": "",
+                            "interface-name": "Vfmodule_Ete_vFWDTvPKG_4a078cd7_0-vpg_private_1_port-7omxvzvbvfkg",
+                            "ipv6-addresses": [],
+                            "ipv4-addresses": [
+                                "10.0.163.103"
+                            ]
+                        }
+                    ],
+                    "vserver-name": "vofwl01pgn8cd7",
+                    "vserver-id": "138e3c87-3754-476a-a2b3-82cade3217a6"
+                }
+            ],
+            "service_instance_id": "535cfd72-ec17-4c22-9620-2be8d4d69e08",
+            "host_id": "Ete_vFWDTvPKG_4a078cd7_0",
+            "vf-module-name": "Vfmodule_Ete_vFWDTvPKG_4a078cd7_0",
+            "cloud_owner": "CloudOwner",
+            "ipv4-oam-address": "",
+            "ipv6-oam-address": "",
+            "nf-id": "2d125b4d-e120-4815-a0c7-4c4bec6c89f9",
+            "aic_version": "1",
+            "vf-module-id": "20982556-57d5-48e3-9b69-955062082cd6",
+            "nf-type": "vnf",
+            "physical-location-id": "clli1"
+        },
+        "inventory_provider": "aai",
+        "service_resource_id": "vPGN-XX"
     },
-    "service_resource_id": "vFW-SINK-XX",
-    "inventory_provider": "aai",
-    "candidate": {
-      "vim-id": "CloudOwner_RegionOne",
-      "host_id": "Ete_vFWDTvFWSNK_4fb7d3cf_1",
-      "cloud_owner": "CloudOwner",
-      "inventory_type": "vfmodule",
-      "candidate_id": "d0154748-16f9-4041-8040-76fe0d075f52",
-      "location_type": "att_aic",
-      "is_rehome": "false",
-      "location_id": "RegionOne"
+    "vFW-SINK": {
+        "candidate": {
+            "cloud_owner": "CloudOwner",
+            "location_type": "att_aic",
+            "inventory_type": "vfmodule",
+            "location_id": "RegionOne",
+            "vim-id": "CloudOwner_RegionOne",
+            "is_rehome": "false",
+            "host_id": "Ete_vFWDTvFWSNK_4a078cd7_1",
+            "candidate_id": "74ea62c8-a24c-43e1-85f4-a720df33c575"
+        },
+        "attributes": {
+            "nf-name": "Ete_vFWDTvFWSNK_4a078cd7_1",
+            "vnf-type": "vFWDT 2019-05-17 14:53:/vFWDT_vFWSNK 0f99e099-e085 1",
+            "vservers": [
+                {
+                    "l-interfaces": [
+                        {
+                            "macaddr": "fa:16:3e:7f:a9:e1",
+                            "network-id": "81fc5db1-84e4-48f0-9532-abba676b9898",
+                            "interface-id": "ad15dcf8-4b3a-4b06-9dc3-2d82d1e76ed4",
+                            "network-name": "",
+                            "interface-name": "Vfmodule_Ete_vFWDTvFWSNK_4a078cd7_1-vfw_private_0_port-sfyebmvfcmfk",
+                            "ipv6-addresses": [],
+                            "ipv4-addresses": [
+                                "192.168.10.100"
+                            ]
+                        },
+                        {
+                            "macaddr": "fa:16:3e:43:a8:a5",
+                            "network-id": "baaf67c1-06c9-44f7-b168-d18c107843d4",
+                            "interface-id": "7510a0c2-e0f4-4630-af0e-b2fac58a9019",
+                            "network-name": "",
+                            "interface-name": "Vfmodule_Ete_vFWDTvFWSNK_4a078cd7_1-vfw_private_2_port-jaqsm4sbng6r",
+                            "ipv6-addresses": [],
+                            "ipv4-addresses": [
+                                "10.0.110.1"
+                            ]
+                        },
+                        {
+                            "macaddr": "fa:16:3e:ef:53:02",
+                            "network-id": "c58db550-312a-42b5-a7d9-8d67a9156195",
+                            "interface-id": "24dcf56b-6e77-4da4-8df7-8242742d1781",
+                            "network-name": "",
+                            "interface-name": "Vfmodule_Ete_vFWDTvFWSNK_4a078cd7_1-vfw_private_3_port-dyjcb5yh4eqr",
+                            "ipv6-addresses": [],
+                            "ipv4-addresses": [
+                                "10.100.100.1"
+                            ]
+                        },
+                        {
+                            "macaddr": "fa:16:3e:ae:6e:3c",
+                            "network-id": "14bac0fa-f7ba-4f6e-850a-ccd68a8a0097",
+                            "interface-id": "979561aa-7734-417b-92f6-55b00e51d622",
+                            "network-name": "",
+                            "interface-name": "Vfmodule_Ete_vFWDTvFWSNK_4a078cd7_1-vfw_private_1_port-gonztluvgyy6",
+                            "ipv6-addresses": [],
+                            "ipv4-addresses": [
+                                "192.168.20.100"
+                            ]
+                        }
+                    ],
+                    "vserver-name": "vofwl01vfw8cd7",
+                    "vserver-id": "e7503d60-1669-4bb2-97c8-71e9322b721e"
+                },
+                {
+                    "l-interfaces": [
+                        {
+                            "macaddr": "fa:16:3e:ff:c6:a6",
+                            "network-id": "14bac0fa-f7ba-4f6e-850a-ccd68a8a0097",
+                            "interface-id": "d6c0690a-ec0d-40ad-a9e0-f0530e747acd",
+                            "network-name": "",
+                            "interface-name": "Vfmodule_Ete_vFWDTvFWSNK_4a078cd7_1-vsn_private_0_port-jmpflgqblme4",
+                            "ipv6-addresses": [],
+                            "ipv4-addresses": [
+                                "192.168.20.250"
+                            ]
+                        },
+                        {
+                            "macaddr": "fa:16:3e:d8:c3:f9",
+                            "network-id": "baaf67c1-06c9-44f7-b168-d18c107843d4",
+                            "interface-id": "2a264dcd-28a6-462d-bf61-59e29c049a73",
+                            "network-name": "",
+                            "interface-name": "Vfmodule_Ete_vFWDTvFWSNK_4a078cd7_1-vsn_private_1_port-hzsduekf4657",
+                            "ipv6-addresses": [],
+                            "ipv4-addresses": [
+                                "10.0.110.3"
+                            ]
+                        },
+                        {
+                            "macaddr": "fa:16:3e:8c:82:3f",
+                            "network-id": "c58db550-312a-42b5-a7d9-8d67a9156195",
+                            "interface-id": "9935a579-9a69-4cf4-b0d0-f6aea5132f83",
+                            "network-name": "",
+                            "interface-name": "Vfmodule_Ete_vFWDTvFWSNK_4a078cd7_1-vsn_private_2_port-slykdp3kujbv",
+                            "ipv6-addresses": [],
+                            "ipv4-addresses": [
+                                "10.100.100.3"
+                            ]
+                        }
+                    ],
+                    "vserver-name": "vofwl01snk8cd7",
+                    "vserver-id": "be3d54fa-c881-4c6a-8257-6e8bd56dc420"
+                }
+            ],
+            "service_instance_id": "535cfd72-ec17-4c22-9620-2be8d4d69e08",
+            "host_id": "Ete_vFWDTvFWSNK_4a078cd7_1",
+            "vf-module-name": "Vfmodule_Ete_vFWDTvFWSNK_4a078cd7_1",
+            "cloud_owner": "CloudOwner",
+            "ipv4-oam-address": "",
+            "ipv6-oam-address": "",
+            "nf-id": "6f80af0e-7873-401b-93af-a4b1f6e7ea84",
+            "aic_version": "1",
+            "vf-module-id": "74ea62c8-a24c-43e1-85f4-a720df33c575",
+            "nf-type": "vnf",
+            "physical-location-id": "clli1"
+        },
+        "inventory_provider": "aai",
+        "service_resource_id": "vFW-SINK-XX"
     }
-  }
 }

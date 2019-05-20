@@ -116,6 +116,13 @@ class HASApiResource(Resource):
     }
 
 
+class APPCLcmApiResource(Resource):
+    actions = {
+        'distribute_traffic': {'method': 'POST', 'url': 'appc-provider-lcm:distribute-traffic/'},
+        'distribute_traffic_check': {'method': 'POST', 'url': 'appc-provider-lcm:distribute-traffic-check/'}
+    }
+
+
 def _init_python_aai_api(onap_ip):
     api = API(
         api_root_url="https://{}:30233/aai/v14/".format(onap_ip),
@@ -151,6 +158,24 @@ def _init_python_has_api(onap_ip):
         json_encode_body=True # encode body as json
     )
     api.add_resource(resource_name='has', resource_class=HASApiResource)
+    return api
+
+
+def _init_python_appc_lcm_api(onap_ip):
+    api = API(
+        api_root_url="http://{}:30230/restconf/operations/".format(onap_ip),
+        params={},
+        headers={
+            'Authorization': encode("admin", "Kp8bJ4SXszM0WXlhak3eHlcse2gAw84vaoGGmJvUy2U"),
+            'X-FromAppId': 'SCRIPT',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+        },
+        timeout=300,
+        append_slash=False,
+        json_encode_body=True # encode body as json
+    )
+    api.add_resource(resource_name='lcm', resource_class=APPCLcmApiResource)
     return api
 
 
@@ -240,8 +265,6 @@ def _has_request(onap_ip, aai_data, exclude):
                 result = response.body['plans'][0]['recommendations'][0]
             else:
                 raise Exception(response.body['plans'][0]['message'])
-
-    print(result)
     return result
 
 
@@ -261,8 +284,11 @@ def _extract_has_appc_identifiers(has_result, demand):
     config = {
         'vnf-id': has_result[demand]['attributes']['nf-id'],
         'vf-module-id': has_result[demand]['attributes']['vf-module-id'],
-        'ip': ip
+        'ip': ip,
+        'vserver-id': v_server['vserver-id']
     }
+    print(demand)
+    print(json.dumps(config, indent=4))
     return config
 
 
@@ -296,31 +322,112 @@ def _build_config_from_has(has_result):
     v_pgn_result = _extract_has_appc_identifiers(has_result, 'vPGN')
     v_fw_result = _extract_has_appc_identifiers(has_result, 'vFW-SINK')
     dt_config = _extract_has_appc_dt_config(has_result, 'vFW-SINK')
+
     config = {
-        'destinations': []
-    }
-    config['destinations'].append({
         'vPGN': v_pgn_result,
         'vFW-SINK': v_fw_result,
-        'dt-config': dt_config
-    })
-    print(json.dumps(config, indent=4))
+        'dt-config': {
+            'destinations': [dt_config]
+        }
+    }
+    #print(json.dumps(config, indent=4))
+    return config
 
 
-def get_appc_lcm_data(onap_ip, aai_data, simulate_oof, if_close_loop_vfw):
+def _build_appc_lcm_dt_payload(is_vpkg, oof_config):
+    if is_vpkg:
+        node_list = "[ {} ]".format(oof_config['vPGN']['vserver-id'])
+    else:
+        node_list = "[ {} ]".format(oof_config['vFW-SINK']['vserver-id'])
+
+    config = {
+        "config-parameters": {
+            "node_list": node_list,
+            "file-parameter-content": json.dumps(oof_config['dt-config'])
+        }
+    }
+    payload = json.dumps(config)
+    return payload
+
+
+def _build_appc_lcm_request_body(is_vpkg, config, req_id, action):
+    if is_vpkg:
+        vnf_id = config['vPGN']['vnf-id']
+    else:
+        vnf_id = config['vFW-SINK']['vnf-id']
+    payload = _build_appc_lcm_dt_payload(is_vpkg, config)
+    template = json.loads(open('templates/appcRestconfLcm.json').read())
+    template['input']['action'] = action
+    template['input']['payload'] = payload
+    template['input']['common-header']['request-id'] = req_id
+    template['input']['common-header']['sub-request-id'] = str(uuid.uuid4())
+    template['input']['action-identifiers']['vnf-id'] = vnf_id
+    return template
+
+
+def _set_appc_lcm_timestamp(body, timestamp=None):
+    if timestamp is None:
+        timestamp = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.244Z')
+    print(timestamp)
+    body['input']['common-header']['timestamp'] = timestamp
+
+
+def build_appc_lcms_requests_body(onap_ip, aai_data, simulate_oof, if_close_loop_vfw):
     if simulate_oof:
         migrate_from = json.loads(open('templates/sample-has-required.json').read())
         migrate_to = json.loads(open('templates/sample-has-excluded.json').read())
     else:
         migrate_from = _has_request(onap_ip, aai_data, False)
+        f = open('templates/sample-has-required.json', 'w')
+        f.write(json.dumps(migrate_from, indent=4))
+        f.close()
         if not if_close_loop_vfw:
             migrate_to = _has_request(onap_ip, aai_data, True)
+            f = open('templates/sample-has-excluded.json', 'w')
+            f.write(json.dumps(migrate_to, indent=4))
+            f.close()
         else:
             migrate_to = migrate_from
     migrate_from = _build_config_from_has(migrate_from)
     migrate_to = _build_config_from_has(migrate_to)
-    #print(json.dumps(migrate_from, indent=4))
-    #print(json.dumps(migrate_to, indent=4))
+
+    req_id = str(uuid.uuid4())
+    payload_dt_check_vpkg = _build_appc_lcm_request_body(True, migrate_to, req_id, 'DistributeTrafficCheck')
+    payload_dt_vpkg_to = _build_appc_lcm_request_body(True, migrate_to, req_id, 'DistributeTraffic')
+    payload_dt_check_vfw_from = _build_appc_lcm_request_body(False, migrate_from, req_id, 'DistributeTrafficCheck')
+    payload_dt_check_vfw_to = _build_appc_lcm_request_body(False, migrate_to, req_id, 'DistributeTrafficCheck')
+    result = list()
+    result.append(payload_dt_check_vpkg)
+    #result.append(payload_dt_vpkg_to)
+    #result.append(payload_dt_check_vfw_from)
+    #result.append(payload_dt_check_vfw_to)
+    return result
+
+
+def appc_lcm_request(onap_ip, req):
+    api = _init_python_appc_lcm_api(onap_ip)
+    print(json.dumps(req, indent=4))
+    time.sleep(1)
+    if req['input']['action'] == "DistributeTraffic":
+        result = api.lcm.distribute_traffic(body=req, params={}, headers={})
+    elif req['input']['action'] == "DistributeTrafficCheck":
+        result = api.lcm.distribute_traffic_check(body=req, params={}, headers={})
+    else:
+        raise Exception("{} action not supported".format(req['input']['action']))
+
+    if result.body['output']['status']['code'] == 400:
+        print("Request Completed")
+    elif result.body['output']['status']['code'] == 100:
+        print("Request Accepted")
+    elif result.body['output']['status']['code'] == 311:
+        timestamp = result.body['output']['common-header']['timestamp']
+        _set_appc_lcm_timestamp(req, timestamp)
+        appc_lcm_request(onap_ip, req)
+        return
+    else:
+        raise Exception("{} - {}".format(result.body['output']['status']['code'],
+                                         result.body['output']['status']['message']))
+    print(result)
 
 
 def execute_workflow(vfw_vnf_id, onap_ip, simulate_oof, if_close_loop_vfw):
@@ -328,7 +435,13 @@ def execute_workflow(vfw_vnf_id, onap_ip, simulate_oof, if_close_loop_vfw):
     print("Simulate OOF {}, is CL vFW {}".format(simulate_oof, if_close_loop_vfw))
     aai_data = load_aai_data(vfw_vnf_id, onap_ip)
     print(json.dumps(aai_data, indent=4))
-    get_appc_lcm_data(onap_ip, aai_data, simulate_oof, if_close_loop_vfw)
+    lcm_requests = build_appc_lcms_requests_body(onap_ip, aai_data, simulate_oof, if_close_loop_vfw)
+
+    for i in range(len(lcm_requests)):
+        print("APPC REQ {}".format(i))
+        req = lcm_requests[i]
+        _set_appc_lcm_timestamp(req)
+        appc_lcm_request(onap_ip, req)
 
 #vnf_id, K8s node IP, simualate OOF, if close loop
 execute_workflow(sys.argv[1], sys.argv[2], sys.argv[3].lower() == 'true', sys.argv[4].lower() == 'true')
