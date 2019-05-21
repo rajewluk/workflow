@@ -8,6 +8,7 @@ import warnings
 import contextlib
 import requests
 from datetime import datetime
+from datetime import timedelta
 from simple_rest_client.api import API
 from simple_rest_client.resource import Resource
 from basicauth import encode
@@ -17,6 +18,7 @@ from urllib3.exceptions import InsecureRequestWarning
 
 
 old_merge_environment_settings = requests.Session.merge_environment_settings
+
 
 @contextlib.contextmanager
 def _no_ssl_verification():
@@ -119,7 +121,8 @@ class HASApiResource(Resource):
 class APPCLcmApiResource(Resource):
     actions = {
         'distribute_traffic': {'method': 'POST', 'url': 'appc-provider-lcm:distribute-traffic/'},
-        'distribute_traffic_check': {'method': 'POST', 'url': 'appc-provider-lcm:distribute-traffic-check/'}
+        'distribute_traffic_check': {'method': 'POST', 'url': 'appc-provider-lcm:distribute-traffic-check/'},
+        'action_status': {'method': 'POST', 'url': 'appc-provider-lcm:action-status/'},
     }
 
 
@@ -258,7 +261,6 @@ def _has_request(onap_ip, aai_data, exclude):
             status = response.body['plans'][0]['status']
             while status != 'done' and status != 'error':
                 print(status)
-                time.sleep(2)
                 response = api.has.plan(plan_id, body=None, params={}, headers={})
                 status = response.body['plans'][0]['status']
             if status == 'done':
@@ -287,8 +289,7 @@ def _extract_has_appc_identifiers(has_result, demand):
         'ip': ip,
         'vserver-id': v_server['vserver-id']
     }
-    print(demand)
-    print(json.dumps(config, indent=4))
+    print("{} ansible_ssh_host={} ansible_ssh_user=ubuntu".format(config['vserver-id'], config['ip']))
     return config
 
 
@@ -325,37 +326,39 @@ def _build_config_from_has(has_result):
 
     config = {
         'vPGN': v_pgn_result,
-        'vFW-SINK': v_fw_result,
-        'dt-config': {
-            'destinations': [dt_config]
-        }
+        'vFW-SINK': v_fw_result
     }
     #print(json.dumps(config, indent=4))
+    config['dt-config'] = {
+        'destinations': [dt_config]
+    }
     return config
 
 
-def _build_appc_lcm_dt_payload(is_vpkg, oof_config):
+def _build_appc_lcm_dt_payload(is_vpkg, oof_config, book_name):
     if is_vpkg:
         node_list = "[ {} ]".format(oof_config['vPGN']['vserver-id'])
     else:
         node_list = "[ {} ]".format(oof_config['vFW-SINK']['vserver-id'])
 
     config = {
-        "config-parameters": {
+        "configuration-parameters": {
             "node_list": node_list,
-            "file-parameter-content": json.dumps(oof_config['dt-config'])
+            "file_parameter_content": json.dumps(oof_config['dt-config'])
         }
     }
+    if book_name != '':
+        config["configuration-parameters"]["book_name"] =  book_name
     payload = json.dumps(config)
     return payload
 
 
-def _build_appc_lcm_request_body(is_vpkg, config, req_id, action):
+def _build_appc_lcm_request_body(is_vpkg, config, req_id, action, book_name):
     if is_vpkg:
         vnf_id = config['vPGN']['vnf-id']
     else:
         vnf_id = config['vFW-SINK']['vnf-id']
-    payload = _build_appc_lcm_dt_payload(is_vpkg, config)
+    payload = _build_appc_lcm_dt_payload(is_vpkg, config, book_name)
     template = json.loads(open('templates/appcRestconfLcm.json').read())
     template['input']['action'] = action
     template['input']['payload'] = payload
@@ -367,8 +370,8 @@ def _build_appc_lcm_request_body(is_vpkg, config, req_id, action):
 
 def _set_appc_lcm_timestamp(body, timestamp=None):
     if timestamp is None:
-        timestamp = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.244Z')
-    print(timestamp)
+        t = datetime.utcnow() + timedelta(seconds=-10)
+        timestamp = t.strftime('%Y-%m-%dT%H:%M:%S.244Z')
     body['input']['common-header']['timestamp'] = timestamp
 
 
@@ -390,12 +393,12 @@ def build_appc_lcms_requests_body(onap_ip, aai_data, simulate_oof, if_close_loop
             migrate_to = migrate_from
     migrate_from = _build_config_from_has(migrate_from)
     migrate_to = _build_config_from_has(migrate_to)
-
     req_id = str(uuid.uuid4())
-    payload_dt_check_vpkg = _build_appc_lcm_request_body(True, migrate_to, req_id, 'DistributeTrafficCheck')
-    payload_dt_vpkg_to = _build_appc_lcm_request_body(True, migrate_to, req_id, 'DistributeTraffic')
-    payload_dt_check_vfw_from = _build_appc_lcm_request_body(False, migrate_from, req_id, 'DistributeTrafficCheck')
-    payload_dt_check_vfw_to = _build_appc_lcm_request_body(False, migrate_to, req_id, 'DistributeTrafficCheck')
+    payload_dt_check_vpkg = _build_appc_lcm_request_body(True, migrate_to, req_id, 'DistributeTrafficCheck',
+                                                         "vpkg-distributetrafficcheck@0.00.yml")
+    payload_dt_vpkg_to = _build_appc_lcm_request_body(True, migrate_to, req_id, 'DistributeTraffic', "")
+    payload_dt_check_vfw_from = _build_appc_lcm_request_body(False, migrate_from, req_id, 'DistributeTrafficCheck', "")
+    payload_dt_check_vfw_to = _build_appc_lcm_request_body(False, migrate_to, req_id, 'DistributeTrafficCheck', "")
     result = list()
     result.append(payload_dt_check_vpkg)
     #result.append(payload_dt_vpkg_to)
@@ -407,7 +410,6 @@ def build_appc_lcms_requests_body(onap_ip, aai_data, simulate_oof, if_close_loop
 def appc_lcm_request(onap_ip, req):
     api = _init_python_appc_lcm_api(onap_ip)
     print(json.dumps(req, indent=4))
-    time.sleep(1)
     if req['input']['action'] == "DistributeTraffic":
         result = api.lcm.distribute_traffic(body=req, params={}, headers={})
     elif req['input']['action'] == "DistributeTrafficCheck":
@@ -419,11 +421,11 @@ def appc_lcm_request(onap_ip, req):
         print("Request Completed")
     elif result.body['output']['status']['code'] == 100:
         print("Request Accepted")
-    elif result.body['output']['status']['code'] == 311:
-        timestamp = result.body['output']['common-header']['timestamp']
-        _set_appc_lcm_timestamp(req, timestamp)
-        appc_lcm_request(onap_ip, req)
-        return
+#    elif result.body['output']['status']['code'] == 311:
+#        timestamp = result.body['output']['common-header']['timestamp']
+#        _set_appc_lcm_timestamp(req, timestamp)
+#        appc_lcm_request(onap_ip, req)
+#        return
     else:
         raise Exception("{} - {}".format(result.body['output']['status']['code'],
                                          result.body['output']['status']['message']))

@@ -8,7 +8,7 @@
       "flags": {
         "force": "TRUE",
         "mode": "NORMAL",
-        "ttl": 3600
+        "ttl": 36000
       },
       "request-id": "8ac122fd-6261-4e72-ba5c-5384fcd0ab2b",
       "originator-id": "vfw-dt-demo",
