@@ -3,6 +3,7 @@ import json
 import sys
 import uuid
 import time
+import copy
 import netifaces as ni
 import warnings
 import contextlib
@@ -335,16 +336,25 @@ def _build_config_from_has(has_result):
     return config
 
 
-def _build_appc_lcm_dt_payload(is_vpkg, oof_config, book_name):
+def _build_appc_lcm_dt_payload(is_vpkg, oof_config, book_name, if_test, traffic_presence):
+    is_check = traffic_presence is not None
+    oof_config = copy.deepcopy(oof_config)
     if is_vpkg:
         node_list = "[ {} ]".format(oof_config['vPGN']['vserver-id'])
     else:
         node_list = "[ {} ]".format(oof_config['vFW-SINK']['vserver-id'])
 
+    if is_check:
+        oof_config['dt-config']['traffic-presence'] = traffic_presence
+
+    if if_test:
+        file_content = {"test": "test"}
+    else:
+        file_content = oof_config['dt-config']
     config = {
         "configuration-parameters": {
             "node_list": node_list,
-            "file_parameter_content": json.dumps(oof_config['dt-config'])
+            "file_parameter_content":  json.dumps(file_content)
         }
     }
     if book_name != '':
@@ -353,12 +363,29 @@ def _build_appc_lcm_dt_payload(is_vpkg, oof_config, book_name):
     return payload
 
 
-def _build_appc_lcm_request_body(is_vpkg, config, req_id, action, book_name):
+def _build_appc_lcm_status_body(req):
+    payload = {
+        'request-id': req['input']['common-header']['request-id'],
+        'sub-request-id': req['input']['common-header']['sub-request-id'],
+        'originator-id': req['input']['common-header']['originator-id']
+    }
+    payload = json.dumps(payload)
+    template = json.loads(open('templates/appcRestconfLcm.json').read())
+    template['input']['action'] = 'ActionStatus'
+    template['input']['payload'] = payload
+    template['input']['common-header']['request-id'] = req['input']['common-header']['request-id']
+    template['input']['common-header']['sub-request-id'] = str(uuid.uuid4())
+    template['input']['action-identifiers']['vnf-id'] = req['input']['action-identifiers']['vnf-id']
+    return template
+
+def _build_appc_lcm_request_body(is_vpkg, config, req_id, action, book_name, if_test, traffic_presence=None):
     if is_vpkg:
         vnf_id = config['vPGN']['vnf-id']
     else:
         vnf_id = config['vFW-SINK']['vnf-id']
-    payload = _build_appc_lcm_dt_payload(is_vpkg, config, book_name)
+    if if_test:
+        book_name = 'test@0.00.yml'
+    payload = _build_appc_lcm_dt_payload(is_vpkg, config, book_name, if_test, traffic_presence)
     template = json.loads(open('templates/appcRestconfLcm.json').read())
     template['input']['action'] = action
     template['input']['payload'] = payload
@@ -375,7 +402,7 @@ def _set_appc_lcm_timestamp(body, timestamp=None):
     body['input']['common-header']['timestamp'] = timestamp
 
 
-def build_appc_lcms_requests_body(onap_ip, aai_data, simulate_oof, if_close_loop_vfw):
+def build_appc_lcms_requests_body(onap_ip, aai_data, simulate_oof, if_close_loop_vfw, if_test):
     if simulate_oof:
         migrate_from = json.loads(open('templates/sample-has-required.json').read())
         migrate_to = json.loads(open('templates/sample-has-excluded.json').read())
@@ -395,10 +422,13 @@ def build_appc_lcms_requests_body(onap_ip, aai_data, simulate_oof, if_close_loop
     migrate_to = _build_config_from_has(migrate_to)
     req_id = str(uuid.uuid4())
     payload_dt_check_vpkg = _build_appc_lcm_request_body(True, migrate_to, req_id, 'DistributeTrafficCheck',
-                                                         "vpkg-distributetrafficcheck@0.00.yml")
-    payload_dt_vpkg_to = _build_appc_lcm_request_body(True, migrate_to, req_id, 'DistributeTraffic', "")
-    payload_dt_check_vfw_from = _build_appc_lcm_request_body(False, migrate_from, req_id, 'DistributeTrafficCheck', "")
-    payload_dt_check_vfw_to = _build_appc_lcm_request_body(False, migrate_to, req_id, 'DistributeTrafficCheck', "")
+                                                         "vpkg-distributetrafficcheck@0.00.yml", if_test, False)
+    payload_dt_vpkg_to = _build_appc_lcm_request_body(True, migrate_to, req_id, 'DistributeTraffic',
+                                                      "distributetraffic@0.00.yml", if_test)
+    payload_dt_check_vfw_from = _build_appc_lcm_request_body(False, migrate_from, req_id, 'DistributeTrafficCheck',
+                                                             "vfw-distributetrafficcheck@0.00.yml", if_test, False)
+    payload_dt_check_vfw_to = _build_appc_lcm_request_body(False, migrate_to, req_id, 'DistributeTrafficCheck',
+                                                           "vfw-distributetrafficcheck@0.00.yml", if_test, True)
     result = list()
     result.append(payload_dt_check_vpkg)
     #result.append(payload_dt_vpkg_to)
@@ -407,7 +437,7 @@ def build_appc_lcms_requests_body(onap_ip, aai_data, simulate_oof, if_close_loop
     return result
 
 
-def appc_lcm_request(onap_ip, req):
+def appc_lcm_request(onap_ip, req, if_test):
     api = _init_python_appc_lcm_api(onap_ip)
     print(json.dumps(req, indent=4))
     if req['input']['action'] == "DistributeTraffic":
@@ -420,7 +450,7 @@ def appc_lcm_request(onap_ip, req):
     if result.body['output']['status']['code'] == 400:
         print("Request Completed")
     elif result.body['output']['status']['code'] == 100:
-        print("Request Accepted")
+        print("Request Accepted. Receiving result status...")
 #    elif result.body['output']['status']['code'] == 311:
 #        timestamp = result.body['output']['common-header']['timestamp']
 #        _set_appc_lcm_timestamp(req, timestamp)
@@ -429,21 +459,55 @@ def appc_lcm_request(onap_ip, req):
     else:
         raise Exception("{} - {}".format(result.body['output']['status']['code'],
                                          result.body['output']['status']['message']))
-    print(result)
+    #print(result)
+    return result.body['output']['status']['code']
 
 
-def execute_workflow(vfw_vnf_id, onap_ip, simulate_oof, if_close_loop_vfw):
+def appc_lcm_status_request(onap_ip, req):
+    api = _init_python_appc_lcm_api(onap_ip)
+    status_body = _build_appc_lcm_status_body(req)
+    _set_appc_lcm_timestamp(status_body)
+
+    result = api.lcm.action_status(body=status_body, params={}, headers={})
+
+    if result.body['output']['status']['code'] == 400:
+        status = json.loads(result.body['output']['payload'])
+        return status
+    else:
+        raise Exception("{} - {}".format(result.body['output']['status']['code'],
+                                         result.body['output']['status']['message']))
+
+
+def confirm_appc_lcm_action(onap_ip, req):
+    print("Checking LCM {} Status".format(req['input']['action']))
+
+    while True:
+        time.sleep(2)
+        status = appc_lcm_status_request(onap_ip, req)
+        print(status['status'])
+        if status['status'] == 'SUCCESSFUL':
+            return
+        elif status['status'] == 'IN_PROGRESS':
+            continue
+        else:
+            raise Exception("LCM {} {} - {}".format(req['input']['action'], status['status'], status['status-reason']))
+
+
+def execute_workflow(vfw_vnf_id, onap_ip, simulate_oof, if_close_loop_vfw, if_test):
     print("Executing workflow for VNF ID '{}' on ONAP with IP {}".format(vfw_vnf_id, onap_ip))
-    print("Simulate OOF {}, is CL vFW {}".format(simulate_oof, if_close_loop_vfw))
+    print("Simulate OOF {}, is CL vFW {}, is test {}".format(simulate_oof, if_close_loop_vfw, if_test))
     aai_data = load_aai_data(vfw_vnf_id, onap_ip)
     print(json.dumps(aai_data, indent=4))
-    lcm_requests = build_appc_lcms_requests_body(onap_ip, aai_data, simulate_oof, if_close_loop_vfw)
+    lcm_requests = build_appc_lcms_requests_body(onap_ip, aai_data, simulate_oof, if_close_loop_vfw, if_test)
 
     for i in range(len(lcm_requests)):
         print("APPC REQ {}".format(i))
         req = lcm_requests[i]
         _set_appc_lcm_timestamp(req)
-        appc_lcm_request(onap_ip, req)
+        result = appc_lcm_request(onap_ip, req, if_test)
+        if result == 100:
+            confirm_appc_lcm_action(onap_ip, req)
 
-#vnf_id, K8s node IP, simualate OOF, if close loop
-execute_workflow(sys.argv[1], sys.argv[2], sys.argv[3].lower() == 'true', sys.argv[4].lower() == 'true')
+
+#vnf_id, K8s node IP, simualate OOF, if close loop, if_test
+execute_workflow(sys.argv[1], sys.argv[2], sys.argv[3].lower() == 'true', sys.argv[4].lower() == 'true', sys.argv[5].lower() == 'true')
