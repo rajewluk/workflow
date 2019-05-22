@@ -288,7 +288,10 @@ def _extract_has_appc_identifiers(has_result, demand):
         'vnf-id': has_result[demand]['attributes']['nf-id'],
         'vf-module-id': has_result[demand]['attributes']['vf-module-id'],
         'ip': ip,
-        'vserver-id': v_server['vserver-id']
+        'vserver-id': v_server['vserver-id'],
+        'vserver-name': v_server['vserver-name'],
+        'vnfc-type': demand.lower(),
+        'physical-location-id': has_result[demand]['attributes']['physical-location-id']
     }
     print("{} ansible_ssh_host={} ansible_ssh_user=ubuntu".format(config['vserver-id'], config['ip']))
     return config
@@ -344,8 +347,23 @@ def _build_appc_lcm_dt_payload(is_vpkg, oof_config, book_name, if_test, traffic_
     else:
         node_list = "[ {} ]".format(oof_config['vFW-SINK']['vserver-id'])
 
+    # if is_vpkg:
+    #     config = oof_config['vPGN']
+    # else:
+    #     config = oof_config['vFW-SINK']
+    # node = {
+    #     'site': config['physical-location-id'],
+    #     'vnfc_type': config['vnfc-type'],
+    #     'vm_info': [{
+    #         'ne_id' : config['vserver-name'],
+    #        'fixed_ip_address': config['ip']
+    #    }]
+    #}
+    #node_list = list()
+    #node_list.append(node)
+
     if is_check:
-        oof_config['dt-config']['traffic-presence'] = traffic_presence
+        oof_config['dt-config']['trafficpresence'] = traffic_presence
 
     if if_test:
         file_content = {"test": "test"}
@@ -378,20 +396,20 @@ def _build_appc_lcm_status_body(req):
     template['input']['action-identifiers']['vnf-id'] = req['input']['action-identifiers']['vnf-id']
     return template
 
-def _build_appc_lcm_request_body(is_vpkg, config, req_id, action, book_name, if_test, traffic_presence=None):
+def _build_appc_lcm_request_body(is_vpkg, config, req_id, action, if_test, traffic_presence=None):
     if is_vpkg:
-        vnf_id = config['vPGN']['vnf-id']
+        demand = 'vPGN'
     else:
-        vnf_id = config['vFW-SINK']['vnf-id']
-    if if_test:
-        book_name = 'test@0.00.yml'
+        demand = 'vFW-SINK'
+
+    book_name = "{}/latest/ansible/{}/site.yml".format(demand.lower(), action.lower())
     payload = _build_appc_lcm_dt_payload(is_vpkg, config, book_name, if_test, traffic_presence)
     template = json.loads(open('templates/appcRestconfLcm.json').read())
     template['input']['action'] = action
     template['input']['payload'] = payload
     template['input']['common-header']['request-id'] = req_id
     template['input']['common-header']['sub-request-id'] = str(uuid.uuid4())
-    template['input']['action-identifiers']['vnf-id'] = vnf_id
+    template['input']['action-identifiers']['vnf-id'] = config[demand]['vnf-id']
     return template
 
 
@@ -421,14 +439,13 @@ def build_appc_lcms_requests_body(onap_ip, aai_data, simulate_oof, if_close_loop
     migrate_from = _build_config_from_has(migrate_from)
     migrate_to = _build_config_from_has(migrate_to)
     req_id = str(uuid.uuid4())
-    payload_dt_check_vpkg = _build_appc_lcm_request_body(True, migrate_to, req_id, 'DistributeTrafficCheck',
-                                                         "vpkg-distributetrafficcheck@0.00.yml", if_test, False)
-    payload_dt_vpkg_to = _build_appc_lcm_request_body(True, migrate_to, req_id, 'DistributeTraffic',
-                                                      "distributetraffic@0.00.yml", if_test)
+    payload_dt_check_vpkg = _build_appc_lcm_request_body(True, migrate_to, req_id, 'DistributeTrafficCheck', if_test,
+                                                         False)
+    payload_dt_vpkg_to = _build_appc_lcm_request_body(True, migrate_to, req_id, 'DistributeTraffic', if_test)
     payload_dt_check_vfw_from = _build_appc_lcm_request_body(False, migrate_from, req_id, 'DistributeTrafficCheck',
-                                                             "vfw-distributetrafficcheck@0.00.yml", if_test, False)
-    payload_dt_check_vfw_to = _build_appc_lcm_request_body(False, migrate_to, req_id, 'DistributeTrafficCheck',
-                                                           "vfw-distributetrafficcheck@0.00.yml", if_test, True)
+                                                             if_test, False)
+    payload_dt_check_vfw_to = _build_appc_lcm_request_body(False, migrate_to, req_id, 'DistributeTrafficCheck', if_test,
+                                                           True)
     result = list()
     result.append(payload_dt_check_vpkg)
     #result.append(payload_dt_vpkg_to)
