@@ -20,6 +20,7 @@ from urllib3.exceptions import InsecureRequestWarning
 
 old_merge_environment_settings = requests.Session.merge_environment_settings
 
+hostname_cache = []
 
 @contextlib.contextmanager
 def _no_ssl_verification():
@@ -229,7 +230,16 @@ def load_aai_data(vfw_vnf_id, onap_ip):
     return aai_data
 
 
-def _has_request(onap_ip, aai_data, exclude):
+def _has_request(onap_ip, aai_data, exclude, use_oof_cache):
+    dirname = os.path.join('templates/oof-cache/', aai_data['vf-module-id'])
+    if exclude:
+        file = os.path.join(dirname, 'sample-has-excluded.json')
+    else:
+        file = os.path.join(dirname, 'sample-has-required.json')
+    if use_oof_cache and os.path.exists(file):
+        migrate_from = json.loads(open(file).read())
+        return migrate_from
+
     print('Making HAS request for excluded {}'.format(str(exclude)))
     api = _init_python_has_api(onap_ip)
     request_id = str(uuid.uuid4())
@@ -268,6 +278,12 @@ def _has_request(onap_ip, aai_data, exclude):
                 result = response.body['plans'][0]['recommendations'][0]
             else:
                 raise Exception(response.body['plans'][0]['message'])
+
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
+    f = open(file, 'w+')
+    f.write(json.dumps(result, indent=4))
+    f.close()
     return result
 
 
@@ -284,6 +300,10 @@ def _extract_has_appc_identifiers(has_result, demand):
             ip = itf['ipv4-addresses'][0]
             break
 
+    if v_server['vserver-name'] in hostname_cache and demand != 'vPGN':
+        v_server['vserver-name'] = v_server['vserver-name'].replace("01", "02")
+    hostname_cache.append(v_server['vserver-name'])
+
     config = {
         'vnf-id': has_result[demand]['attributes']['nf-id'],
         'vf-module-id': has_result[demand]['attributes']['vf-module-id'],
@@ -293,7 +313,7 @@ def _extract_has_appc_identifiers(has_result, demand):
         'vnfc-type': demand.lower(),
         'physical-location-id': has_result[demand]['attributes']['physical-location-id']
     }
-    print("{} ansible_ssh_host={} ansible_ssh_user=ubuntu".format(config['vserver-id'], config['ip']))
+    print("{} ansible_ssh_host={} ansible_ssh_user=ubuntu".format(config['vserver-name'], config['ip']))
     return config
 
 
@@ -342,22 +362,22 @@ def _build_config_from_has(has_result):
 def _build_appc_lcm_dt_payload(is_vpkg, oof_config, book_name, if_test, traffic_presence):
     is_check = traffic_presence is not None
     oof_config = copy.deepcopy(oof_config)
-    if is_vpkg:
-        node_list = "[ {} ]".format(oof_config['vPGN']['vserver-id'])
-    else:
-        node_list = "[ {} ]".format(oof_config['vFW-SINK']['vserver-id'])
+    #if is_vpkg:
+    #    node_list = "[ {} ]".format(oof_config['vPGN']['vserver-id'])
+    #else:
+    #    node_list = "[ {} ]".format(oof_config['vFW-SINK']['vserver-id'])
 
-    # if is_vpkg:
-    #     config = oof_config['vPGN']
-    # else:
-    #     config = oof_config['vFW-SINK']
-    # node = {
-    #     'site': config['physical-location-id'],
-    #     'vnfc_type': config['vnfc-type'],
-    #     'vm_info': [{
-    #         'ne_id' : config['vserver-name'],
+    if is_vpkg:
+        config = oof_config['vPGN']
+    else:
+        config = oof_config['vFW-SINK']
+    #node = {
+    #    'site': config['physical-location-id'],
+    #    'vnfc_type': config['vnfc-type'],
+    #    'vm_info': [{
+    #        'ne_id': config['vserver-name'],
     #        'fixed_ip_address': config['ip']
-    #    }]
+    #   }]
     #}
     #node_list = list()
     #node_list.append(node)
@@ -371,12 +391,14 @@ def _build_appc_lcm_dt_payload(is_vpkg, oof_config, book_name, if_test, traffic_
         file_content = oof_config['dt-config']
     config = {
         "configuration-parameters": {
-            "node_list": node_list,
+            #"node_list": node_list,
+            "ne_id": config['vserver-name'],
+            "fixed_ip_address": config['ip'],
             "file_parameter_content":  json.dumps(file_content)
         }
     }
     if book_name != '':
-        config["configuration-parameters"]["book_name"] =  book_name
+        config["configuration-parameters"]["book_name"] = book_name
     payload = json.dumps(config)
     return payload
 
@@ -395,6 +417,7 @@ def _build_appc_lcm_status_body(req):
     template['input']['common-header']['sub-request-id'] = str(uuid.uuid4())
     template['input']['action-identifiers']['vnf-id'] = req['input']['action-identifiers']['vnf-id']
     return template
+
 
 def _build_appc_lcm_request_body(is_vpkg, config, req_id, action, if_test, traffic_presence=None):
     if is_vpkg:
@@ -420,22 +443,14 @@ def _set_appc_lcm_timestamp(body, timestamp=None):
     body['input']['common-header']['timestamp'] = timestamp
 
 
-def build_appc_lcms_requests_body(onap_ip, aai_data, simulate_oof, if_close_loop_vfw, if_test):
-    if simulate_oof:
-        migrate_from = json.loads(open('templates/sample-has-required.json').read())
-        migrate_to = json.loads(open('templates/sample-has-excluded.json').read())
+def build_appc_lcms_requests_body(onap_ip, aai_data, use_oof_cache, if_close_loop_vfw, if_test):
+    migrate_from = _has_request(onap_ip, aai_data, False, use_oof_cache)
+
+    if if_close_loop_vfw:
+        migrate_to = migrate_from
     else:
-        migrate_from = _has_request(onap_ip, aai_data, False)
-        f = open('templates/sample-has-required.json', 'w')
-        f.write(json.dumps(migrate_from, indent=4))
-        f.close()
-        if not if_close_loop_vfw:
-            migrate_to = _has_request(onap_ip, aai_data, True)
-            f = open('templates/sample-has-excluded.json', 'w')
-            f.write(json.dumps(migrate_to, indent=4))
-            f.close()
-        else:
-            migrate_to = migrate_from
+        migrate_to = _has_request(onap_ip, aai_data, True, use_oof_cache)
+
     migrate_from = _build_config_from_has(migrate_from)
     migrate_to = _build_config_from_has(migrate_to)
     req_id = str(uuid.uuid4())
@@ -448,15 +463,15 @@ def build_appc_lcms_requests_body(onap_ip, aai_data, simulate_oof, if_close_loop
                                                            True)
     result = list()
     result.append(payload_dt_check_vpkg)
-    #result.append(payload_dt_vpkg_to)
-    #result.append(payload_dt_check_vfw_from)
-    #result.append(payload_dt_check_vfw_to)
+    result.append(payload_dt_vpkg_to)
+    result.append(payload_dt_check_vfw_from)
+    result.append(payload_dt_check_vfw_to)
     return result
 
 
 def appc_lcm_request(onap_ip, req, if_test):
     api = _init_python_appc_lcm_api(onap_ip)
-    print(json.dumps(req, indent=4))
+    #print(json.dumps(req, indent=4))
     if req['input']['action'] == "DistributeTraffic":
         result = api.lcm.distribute_traffic(body=req, params={}, headers={})
     elif req['input']['action'] == "DistributeTrafficCheck":
@@ -495,7 +510,7 @@ def appc_lcm_status_request(onap_ip, req):
                                          result.body['output']['status']['message']))
 
 
-def confirm_appc_lcm_action(onap_ip, req):
+def confirm_appc_lcm_action(onap_ip, req, check_appc_result):
     print("Checking LCM {} Status".format(req['input']['action']))
 
     while True:
@@ -506,16 +521,18 @@ def confirm_appc_lcm_action(onap_ip, req):
             return
         elif status['status'] == 'IN_PROGRESS':
             continue
-        else:
+        elif check_appc_result:
             raise Exception("LCM {} {} - {}".format(req['input']['action'], status['status'], status['status-reason']))
+        else:
+            return
 
 
-def execute_workflow(vfw_vnf_id, onap_ip, simulate_oof, if_close_loop_vfw, if_test):
+def execute_workflow(vfw_vnf_id, onap_ip, use_oof_cache, if_close_loop_vfw, if_test):
     print("Executing workflow for VNF ID '{}' on ONAP with IP {}".format(vfw_vnf_id, onap_ip))
-    print("Simulate OOF {}, is CL vFW {}, is test {}".format(simulate_oof, if_close_loop_vfw, if_test))
+    print("OOF Cache {}, is CL vFW {}, is test {}".format(use_oof_cache, if_close_loop_vfw, if_test))
     aai_data = load_aai_data(vfw_vnf_id, onap_ip)
     print(json.dumps(aai_data, indent=4))
-    lcm_requests = build_appc_lcms_requests_body(onap_ip, aai_data, simulate_oof, if_close_loop_vfw, if_test)
+    lcm_requests = build_appc_lcms_requests_body(onap_ip, aai_data, use_oof_cache, if_close_loop_vfw, if_test)
 
     for i in range(len(lcm_requests)):
         print("APPC REQ {}".format(i))
@@ -523,8 +540,9 @@ def execute_workflow(vfw_vnf_id, onap_ip, simulate_oof, if_close_loop_vfw, if_te
         _set_appc_lcm_timestamp(req)
         result = appc_lcm_request(onap_ip, req, if_test)
         if result == 100:
-            confirm_appc_lcm_action(onap_ip, req)
+            confirm_appc_lcm_action(onap_ip, req, False)
+            #time.sleep(30)
 
 
-#vnf_id, K8s node IP, simualate OOF, if close loop, if_test
+#vnf_id, K8s node IP, use OOF cache, if close loop, if_tes
 execute_workflow(sys.argv[1], sys.argv[2], sys.argv[3].lower() == 'true', sys.argv[4].lower() == 'true', sys.argv[5].lower() == 'true')
