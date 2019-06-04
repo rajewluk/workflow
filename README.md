@@ -2,9 +2,9 @@ This python script is used to execute Traffic Distribution workflow on vFWDT ser
 It uses AAI, OOF and APPC API to perform steps necessary to distribute traffic from one to the other 
 instance of vFW. Full description of the the use case can be found in here
 
-`https://docs.onap.org/en/latest/submodules/integration.git/docs/docs_vFWDT.html`
+[ONAP vFW Traffic Distribution Use Case](https://docs.onap.org/en/latest/submodules/integration.git/docs/docs_vFWDT.html)
 
-Usage 
+Usage:
 
 `pip3 install -r requirements.txt --user`
 
