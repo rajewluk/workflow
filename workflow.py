@@ -22,6 +22,7 @@ old_merge_environment_settings = requests.Session.merge_environment_settings
 
 hostname_cache = []
 
+
 @contextlib.contextmanager
 def _no_ssl_verification():
     opened_adapters = set()
@@ -359,7 +360,7 @@ def _build_config_from_has(has_result):
     return config
 
 
-def _build_appc_lcm_dt_payload(is_vpkg, oof_config, book_name, if_test, traffic_presence):
+def _build_appc_lcm_dt_payload(is_vpkg, oof_config, book_name, traffic_presence):
     is_check = traffic_presence is not None
     oof_config = copy.deepcopy(oof_config)
     #if is_vpkg:
@@ -385,10 +386,8 @@ def _build_appc_lcm_dt_payload(is_vpkg, oof_config, book_name, if_test, traffic_
     if is_check:
         oof_config['dt-config']['trafficpresence'] = traffic_presence
 
-    if if_test:
-        file_content = {"test": "test"}
-    else:
-        file_content = oof_config['dt-config']
+    file_content = oof_config['dt-config']
+
     config = {
         "configuration-parameters": {
             #"node_list": node_list,
@@ -419,14 +418,14 @@ def _build_appc_lcm_status_body(req):
     return template
 
 
-def _build_appc_lcm_request_body(is_vpkg, config, req_id, action, if_test, traffic_presence=None):
+def _build_appc_lcm_request_body(is_vpkg, config, req_id, action, traffic_presence=None):
     if is_vpkg:
         demand = 'vPGN'
     else:
         demand = 'vFW-SINK'
 
     book_name = "{}/latest/ansible/{}/site.yml".format(demand.lower(), action.lower())
-    payload = _build_appc_lcm_dt_payload(is_vpkg, config, book_name, if_test, traffic_presence)
+    payload = _build_appc_lcm_dt_payload(is_vpkg, config, book_name, traffic_presence)
     template = json.loads(open('templates/appcRestconfLcm.json').read())
     template['input']['action'] = action
     template['input']['payload'] = payload
@@ -443,7 +442,7 @@ def _set_appc_lcm_timestamp(body, timestamp=None):
     body['input']['common-header']['timestamp'] = timestamp
 
 
-def build_appc_lcms_requests_body(onap_ip, aai_data, use_oof_cache, if_close_loop_vfw, if_test):
+def build_appc_lcms_requests_body(onap_ip, aai_data, use_oof_cache, if_close_loop_vfw):
     migrate_from = _has_request(onap_ip, aai_data, False, use_oof_cache)
 
     if if_close_loop_vfw:
@@ -451,16 +450,16 @@ def build_appc_lcms_requests_body(onap_ip, aai_data, use_oof_cache, if_close_loo
     else:
         migrate_to = _has_request(onap_ip, aai_data, True, use_oof_cache)
 
+    print("Ansible Inventory")
     migrate_from = _build_config_from_has(migrate_from)
     migrate_to = _build_config_from_has(migrate_to)
     req_id = str(uuid.uuid4())
-    payload_dt_check_vpkg = _build_appc_lcm_request_body(True, migrate_to, req_id, 'DistributeTrafficCheck', if_test,
-                                                         False)
-    payload_dt_vpkg_to = _build_appc_lcm_request_body(True, migrate_to, req_id, 'DistributeTraffic', if_test)
+    payload_dt_check_vpkg = _build_appc_lcm_request_body(True, migrate_to, req_id, 'DistributeTrafficCheck', False)
+    payload_dt_vpkg_to = _build_appc_lcm_request_body(True, migrate_to, req_id, 'DistributeTraffic')
     payload_dt_check_vfw_from = _build_appc_lcm_request_body(False, migrate_from, req_id, 'DistributeTrafficCheck',
-                                                             if_test, False)
-    payload_dt_check_vfw_to = _build_appc_lcm_request_body(False, migrate_to, req_id, 'DistributeTrafficCheck', if_test,
-                                                           True)
+                                                             False)
+    payload_dt_check_vfw_to = _build_appc_lcm_request_body(False, migrate_to, req_id, 'DistributeTrafficCheck', True)
+
     result = list()
     result.append(payload_dt_check_vpkg)
     result.append(payload_dt_vpkg_to)
@@ -469,7 +468,7 @@ def build_appc_lcms_requests_body(onap_ip, aai_data, use_oof_cache, if_close_loo
     return result
 
 
-def appc_lcm_request(onap_ip, req, if_test):
+def appc_lcm_request(onap_ip, req):
     api = _init_python_appc_lcm_api(onap_ip)
     #print(json.dumps(req, indent=4))
     if req['input']['action'] == "DistributeTraffic":
@@ -527,22 +526,23 @@ def confirm_appc_lcm_action(onap_ip, req, check_appc_result):
             return
 
 
-def execute_workflow(vfw_vnf_id, onap_ip, use_oof_cache, if_close_loop_vfw, if_test):
+def execute_workflow(vfw_vnf_id, onap_ip, use_oof_cache, if_close_loop_vfw, check_result):
     print("Executing workflow for VNF ID '{}' on ONAP with IP {}".format(vfw_vnf_id, onap_ip))
-    print("OOF Cache {}, is CL vFW {}, is test {}".format(use_oof_cache, if_close_loop_vfw, if_test))
+    print("OOF Cache {}, is CL vFW {}".format(use_oof_cache, if_close_loop_vfw))
     aai_data = load_aai_data(vfw_vnf_id, onap_ip)
     print(json.dumps(aai_data, indent=4))
-    lcm_requests = build_appc_lcms_requests_body(onap_ip, aai_data, use_oof_cache, if_close_loop_vfw, if_test)
+    lcm_requests = build_appc_lcms_requests_body(onap_ip, aai_data, use_oof_cache, if_close_loop_vfw)
 
     for i in range(len(lcm_requests)):
-        print("APPC REQ {}".format(i))
         req = lcm_requests[i]
+        print("APPC REQ {} - {}".format(i, req['input']['action']))
         _set_appc_lcm_timestamp(req)
-        result = appc_lcm_request(onap_ip, req, if_test)
+        result = appc_lcm_request(onap_ip, req)
         if result == 100:
-            confirm_appc_lcm_action(onap_ip, req, False)
+            confirm_appc_lcm_action(onap_ip, req, check_result)
             #time.sleep(30)
 
 
-#vnf_id, K8s node IP, use OOF cache, if close loop, if_tes
-execute_workflow(sys.argv[1], sys.argv[2], sys.argv[3].lower() == 'true', sys.argv[4].lower() == 'true', sys.argv[5].lower() == 'true')
+#vnf_id, K8s node IP, use OOF cache, if close loop vfw, if check APPC result
+execute_workflow(sys.argv[1], sys.argv[2], sys.argv[3].lower() == 'true', sys.argv[4].lower() == 'true',
+                 sys.argv[5].lower() == 'true')
