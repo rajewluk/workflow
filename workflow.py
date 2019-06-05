@@ -21,6 +21,7 @@ from urllib3.exceptions import InsecureRequestWarning
 old_merge_environment_settings = requests.Session.merge_environment_settings
 
 hostname_cache = []
+ansible_inventory = {}
 
 
 @contextlib.contextmanager
@@ -189,13 +190,14 @@ def load_aai_data(vfw_vnf_id, onap_ip):
     api = _init_python_aai_api(onap_ip)
     aai_data = {}
     aai_data['service-info'] = {'global-customer-id': '', 'service-instance-id': '', 'service-type': ''}
-    aai_data['vfw-model-info'] = {'model-invariant-id': '', 'model-version-id': '', 'vnf-name': ''}
-    aai_data['vpgn-model-info'] = {'model-invariant-id': '', 'model-version-id': '', 'vnf-name': ''}
+    aai_data['vfw-model-info'] = {'model-invariant-id': '', 'model-version-id': '', 'vnf-name': '', 'vnf-type': ''}
+    aai_data['vpgn-model-info'] = {'model-invariant-id': '', 'model-version-id': '', 'vnf-name': '', 'vnf-type': ''}
     with _no_ssl_verification():
         response = api.aai.generic_vnf(vfw_vnf_id, body=None, params={'depth': 2}, headers={})
         aai_data['vfw-model-info']['model-invariant-id'] = response.body.get('model-invariant-id')
         aai_data['vfw-model-info']['model-version-id'] = response.body.get('model-version-id')
         aai_data['vfw-model-info']['vnf-name'] = response.body.get('vnf-name')
+        aai_data['vfw-model-info']['vnf-type'] = response.body.get('vnf-type')
         aai_data['vf-module-id'] = response.body['vf-modules']['vf-module'][0]['vf-module-id']
 
         related_to = "service-instance"
@@ -227,6 +229,7 @@ def load_aai_data(vfw_vnf_id, onap_ip):
                     aai_data['vpgn-model-info']['model-invariant-id'] = response.body.get('model-invariant-id')
                     aai_data['vpgn-model-info']['model-version-id'] = response.body.get('model-version-id')
                     aai_data['vpgn-model-info']['vnf-name'] = response.body.get('vnf-name')
+                    aai_data['vpgn-model-info']['vnf-type'] = response.body.get('vnf-type')
                     break
     return aai_data
 
@@ -314,7 +317,10 @@ def _extract_has_appc_identifiers(has_result, demand):
         'vnfc-type': demand.lower(),
         'physical-location-id': has_result[demand]['attributes']['physical-location-id']
     }
-    print("{} ansible_ssh_host={} ansible_ssh_user=ubuntu".format(config['vserver-name'], config['ip']))
+    ansible_inventory_entry = "{} ansible_ssh_host={} ansible_ssh_user=ubuntu".format(config['vserver-name'], config['ip'])
+    if demand.lower() not in ansible_inventory:
+        ansible_inventory[demand.lower()] = {}
+    ansible_inventory[demand.lower()][config['vserver-name']] = ansible_inventory_entry
     return config
 
 
@@ -450,7 +456,6 @@ def build_appc_lcms_requests_body(onap_ip, aai_data, use_oof_cache, if_close_loo
     else:
         migrate_to = _has_request(onap_ip, aai_data, True, use_oof_cache)
 
-    print("Ansible Inventory")
     migrate_from = _build_config_from_has(migrate_from)
     migrate_to = _build_config_from_has(migrate_to)
     req_id = str(uuid.uuid4())
@@ -526,13 +531,23 @@ def confirm_appc_lcm_action(onap_ip, req, check_appc_result):
             return
 
 
-def execute_workflow(vfw_vnf_id, onap_ip, use_oof_cache, if_close_loop_vfw, check_result):
-    print("Executing workflow for VNF ID '{}' on ONAP with IP {}".format(vfw_vnf_id, onap_ip))
-    print("OOF Cache {}, is CL vFW {}".format(use_oof_cache, if_close_loop_vfw))
+def execute_workflow(vfw_vnf_id, onap_ip, use_oof_cache, if_close_loop_vfw, info_only, check_result):
+    print("\nExecuting workflow for VNF ID '{}' on ONAP with IP {}".format(vfw_vnf_id, onap_ip))
+    print("\nOOF Cache {}, is CL vFW {}, only info {}, check LCM result {}".format(use_oof_cache, if_close_loop_vfw,
+                                                                                   info_only, check_result))
     aai_data = load_aai_data(vfw_vnf_id, onap_ip)
+    print("\nvFWDT Service Information:")
     print(json.dumps(aai_data, indent=4))
     lcm_requests = build_appc_lcms_requests_body(onap_ip, aai_data, use_oof_cache, if_close_loop_vfw)
+    print("\nAnsible Inventory:")
+    for key in ansible_inventory:
+        print("[{}]".format(key))
+        for host in ansible_inventory[key]:
+            print(ansible_inventory[key][host])
 
+    if info_only:
+        return
+    print("\nDistribute Traffic Workflow Execution:")
     for i in range(len(lcm_requests)):
         req = lcm_requests[i]
         print("APPC REQ {} - {}".format(i, req['input']['action']))
@@ -543,6 +558,6 @@ def execute_workflow(vfw_vnf_id, onap_ip, use_oof_cache, if_close_loop_vfw, chec
             #time.sleep(30)
 
 
-#vnf_id, K8s node IP, use OOF cache, if close loop vfw, if check APPC result
+#vnf_id, K8s node IP, use OOF cache, if close loop vfw, if info_only, if check APPC result
 execute_workflow(sys.argv[1], sys.argv[2], sys.argv[3].lower() == 'true', sys.argv[4].lower() == 'true',
-                 sys.argv[5].lower() == 'true')
+                 sys.argv[5].lower() == 'true', sys.argv[6].lower() == 'true')
