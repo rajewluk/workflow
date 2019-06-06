@@ -459,7 +459,7 @@ def build_appc_lcms_requests_body(onap_ip, aai_data, use_oof_cache, if_close_loo
     migrate_from = _build_config_from_has(migrate_from)
     migrate_to = _build_config_from_has(migrate_to)
     req_id = str(uuid.uuid4())
-    payload_dt_check_vpkg = _build_appc_lcm_request_body(True, migrate_to, req_id, 'DistributeTrafficCheck', False)
+    payload_dt_check_vpkg = _build_appc_lcm_request_body(True, migrate_from, req_id, 'DistributeTrafficCheck', True)
     payload_dt_vpkg_to = _build_appc_lcm_request_body(True, migrate_to, req_id, 'DistributeTraffic')
     payload_dt_check_vfw_from = _build_appc_lcm_request_body(False, migrate_from, req_id, 'DistributeTrafficCheck',
                                                              False)
